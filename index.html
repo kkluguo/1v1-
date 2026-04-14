@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>格鬥大賽：三戰兩勝</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0f172a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: white;
+            font-family: "Microsoft JhengHei", sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            background-color: #020617;
+            border: 4px solid #1e293b;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            max-width: 100%;
+        }
+        .ui-overlay {
+            position: absolute;
+            top: 20px;
+            width: 850px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+        .status-bar {
+            width: 300px;
+        }
+        .bar-container {
+            height: 18px;
+            background: #1e293b;
+            border-radius: 9px;
+            margin-bottom: 8px;
+            overflow: hidden;
+            border: 2px solid #000;
+            position: relative;
+        }
+        .hp-bar { height: 100%; background: linear-gradient(90deg, #ef4444, #f87171); transition: width 0.3s ease-out; }
+        .mp-bar { height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width 0.3s; }
+        .label { font-weight: 800; color: #f8fafc; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); padding: 2px 8px; margin-bottom: 5px; display: inline-block; font-size: 14px; }
+        
+        #instructions {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(15, 23, 42, 0.95);
+            padding: 15px;
+            text-align: center;
+            font-size: 14px;
+            border-top: 2px solid #3b82f6;
+            z-index: 100;
+        }
+
+        #menu, #result {
+            position: absolute;
+            background: rgba(2, 6, 23, 0.98);
+            padding: 40px 60px;
+            border-radius: 30px;
+            text-align: center;
+            border: 2px solid #3b82f6;
+            z-index: 200;
+            box-shadow: 0 0 60px rgba(59, 130, 246, 0.3);
+            width: 700px;
+        }
+        .job-card {
+            display: inline-block;
+            padding: 25px;
+            margin: 10px;
+            border: 4px solid #334155;
+            border-radius: 20px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 280px;
+            background: #1e293b;
+            cursor: pointer;
+            vertical-align: top;
+        }
+        .selected { 
+            border-color: #3b82f6; 
+            background: rgba(59, 130, 246, 0.2); 
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(59, 130, 246, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ui-overlay" id="game-ui" style="display: none;">
+        <div class="status-bar">
+            <div class="label">玩家: <span id="player-job-name">-</span> <span id="p-wins"></span></div>
+            <div class="bar-container"><div id="p-hp" class="hp-bar" style="width: 100%;"></div></div>
+            <div class="bar-container"><div id="p-mp" class="mp-bar" style="width: 100%;"></div></div>
+        </div>
+        <div class="status-bar" style="text-align: right;">
+            <div class="label"><span id="ai-wins"></span> <span id="ai-job-name">-</span> :電腦</div>
+            <div class="bar-container"><div id="ai-hp" class="hp-bar" style="width: 100%;"></div></div>
+            <div class="bar-container"><div id="ai-mp" class="mp-bar" style="width: 100%;"></div></div>
+        </div>
+    </div>
+
+    <!-- 選角選單 -->
+    <div id="menu">
+        <h1 class="text-5xl font-black mb-1 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-red-500">格鬥大賽</h1>
+        <div class="text-2xl text-yellow-400 font-black mb-4 underline decoration-blue-500 underline-offset-8">三戰兩勝</div>
+        <div id="round-title" class="text-xl text-slate-300 font-bold mb-6">第一回合：選擇你的職業</div>
+        
+        <div class="flex justify-center gap-6">
+            <div id="job-0" class="job-card selected">
+                <h2 class="text-3xl font-bold text-red-500 mb-2">戰士</h2>
+                <div class="text-left text-sm space-y-2 text-slate-300">
+                    <p><span class="text-red-400 font-bold">● 普攻：</span>近距離快速揮砍。</p>
+                    <p><span class="text-red-400 font-bold">● 技能：</span><span class="text-white">無畏衝鋒</span>。進入霸體狀態並高速向前方突進，無視擊退並重創路徑上的敵人。</p>
+                </div>
+            </div>
+            <div id="job-1" class="job-card">
+                <h2 class="text-3xl font-bold text-blue-500 mb-2">法師</h2>
+                <div class="text-left text-sm space-y-2 text-slate-300">
+                    <p><span class="text-blue-400 font-bold">● 普攻：</span>釋放遠程發球牽制。</p>
+                    <p><span class="text-blue-400 font-bold">● 技能：</span><span class="text-white">冰凍新星</span>。瞬間釋放寒冰衝擊彈開敵人，並使其短暫陷入減速狀態。</p>
+                </div>
+            </div>
+        </div>
+        <p class="mt-8 text-slate-500 font-bold">← → 鍵切換 ｜ 空格鍵 開始戰鬥</p>
+    </div>
+
+    <!-- 最終結果 -->
+    <div id="result" style="display: none;">
+        <h1 id="winner-text" class="text-7xl font-black mb-10"></h1>
+        <button onclick="location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white px-12 py-5 rounded-full font-black text-xl transition-all hover:scale-110 shadow-lg shadow-blue-500/50">重新開始</button>
+    </div>
+
+    <canvas id="gameCanvas" width="850" height="450"></canvas>
+
+    <div id="instructions">
+        ← → 移動 ｜ 空格 跳躍 ｜ Z 普攻 ｜ X 技能
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const menu = document.getElementById('menu');
+        const gameUI = document.getElementById('game-ui');
+        const resultUI = document.getElementById('result');
+
+        const JOBS = {
+            WARRIOR: {
+                name: '戰士',
+                zCost: 8, zDmg: 10,
+                xCost: 35, xDmg: 25, 
+                maxMp: 100,
+                range: 65, 
+                isRemote: false,
+                mpRegen: 14, 
+                moveSpeed: 0.5, 
+                xDuration: 25,
+                dashPower: 22 
+            },
+            MAGE: {
+                name: '法師',
+                zCost: 15, zDmg: 6,
+                xCost: 55, xDmg: 18, 
+                maxMp: 160,
+                range: 500,
+                isRemote: true,
+                mpRegen: 15,
+                moveSpeed: 0.38 
+            }
+        };
+
+        const STATE = { SELECTING: 0, PLAYING: 1, ROUND_END: 2, GAME_OVER: 3 };
+        let currentGameState = STATE.SELECTING;
+        let playerWins = 0, aiWins = 0, selectedJobIdx = 0; 
+        let player, ai, projectiles = [];
+
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            keys[key] = true;
+            if (currentGameState === STATE.SELECTING) {
+                if (e.key === 'ArrowLeft') { selectedJobIdx = 0; updateMenuUI(); }
+                else if (e.key === 'ArrowRight') { selectedJobIdx = 1; updateMenuUI(); }
+                else if (e.key === ' ') { startRound(); }
+            }
+        });
+        window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+        function updateMenuUI() {
+            document.getElementById('job-0').classList.toggle('selected', selectedJobIdx === 0);
+            document.getElementById('job-1').classList.toggle('selected', selectedJobIdx === 1);
+            
+            const roundNum = playerWins + aiWins + 1;
+            const chineseNums = ["", "一", "二", "三", "四", "五"];
+            document.getElementById('round-title').innerText = `第${chineseNums[roundNum]}回合：選擇你的職業`;
+        }
+
+        class Character {
+            constructor(x, y, color, job, isPlayer) {
+                this.x = x; this.y = y; this.color = color; this.job = job; this.isPlayer = isPlayer;
+                this.width = 40; this.height = 80; this.hp = 100; this.mp = job.maxMp;
+                this.vx = 0; this.vy = 0; this.facing = isPlayer ? 1 : -1;
+                this.isJumping = false; this.attackTimer = 0; this.attackType = null;
+                this.superArmor = 0; 
+                this.slowDown = 0;   
+            }
+
+            update() {
+                if (this.slowDown > 0) this.slowDown--;
+                let currentRegen = this.job.mpRegen;
+                this.mp = Math.min(this.job.maxMp, this.mp + currentRegen / 60);
+                
+                this.vy += 0.8;
+                this.y += this.vy;
+                this.x += this.vx;
+                this.vx *= 0.85;
+
+                if (this.y > canvas.height - this.height - 20) {
+                    this.y = canvas.height - this.height - 20;
+                    this.vy = 0;
+                    this.isJumping = false;
+                }
+                
+                if (this.x < 0) this.x = 0;
+                if (this.x > canvas.width - this.width) this.x = canvas.width - this.width;
+
+                if (this.attackTimer > 0) {
+                    this.attackTimer--;
+                    if (this.attackTimer === 0) this.attackType = null;
+                }
+                if (this.superArmor > 0) this.superArmor--;
+            }
+
+            draw() {
+                ctx.save();
+                if (this.superArmor > 0) {
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = "gold";
+                }
+                if (this.slowDown > 0) {
+                    ctx.strokeStyle = "#93c5fd";
+                } else {
+                    ctx.strokeStyle = this.color;
+                }
+
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.arc(0, -30, 10, 0, Math.PI * 2); 
+                ctx.moveTo(0, -20); ctx.lineTo(0, 10); 
+                ctx.moveTo(0, 10); ctx.lineTo(-15, 30); 
+                ctx.moveTo(0, 10); ctx.lineTo(15, 30);
+                
+                if (this.attackType) {
+                    ctx.moveTo(0, -10); ctx.lineTo(35 * this.facing, -10);
+                    if (this.job === JOBS.WARRIOR) {
+                        ctx.strokeStyle = '#fff';
+                        ctx.moveTo(35 * this.facing, -25); ctx.lineTo(35 * this.facing, 5);
+                    }
+                } else {
+                    ctx.moveTo(0, -10); ctx.lineTo(-12 * this.facing, 5);
+                    ctx.moveTo(0, -10); ctx.lineTo(12 * this.facing, 5);
+                }
+                ctx.stroke();
+                ctx.restore();
+
+                if (this.job === JOBS.MAGE && this.attackType === 'X' && this.attackTimer > 30) {
+                    const radius = Math.max(0, 100 - (this.attackTimer - 30) * 5);
+                    if (radius > 0) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = "rgba(56, 189, 248, 0.5)";
+                        ctx.lineWidth = 10;
+                        ctx.arc(this.x + 20, this.y + 40, radius, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            attack(type) {
+                if (this.attackTimer > 0 || currentGameState !== STATE.PLAYING) return;
+                const cost = type === 'Z' ? this.job.zCost : this.job.xCost;
+                if (this.mp < cost) return;
+
+                if (this.job === JOBS.WARRIOR && type === 'X') {
+                    this.superArmor = this.job.xDuration;
+                    this.vx = this.facing * this.job.dashPower;
+                }
+
+                if (this.job === JOBS.MAGE && type === 'X') {
+                    const target = this.isPlayer ? ai : player;
+                    const dist = Math.sqrt(Math.pow(this.x - target.x, 2) + Math.pow(this.y - target.y, 2));
+                    if (dist < 130) { 
+                        target.hp = Math.max(0, target.hp - this.job.xDmg);
+                        if (target.superArmor <= 0) {
+                            const pushDir = target.x > this.x ? 1 : -1;
+                            target.vx = pushDir * 22; 
+                            target.slowDown = 75; 
+                        }
+                    }
+                }
+
+                this.mp -= cost;
+                this.attackTimer = this.job === JOBS.WARRIOR ? 30 : 55; 
+                this.attackType = type;
+
+                if (this.job.isRemote && type === 'Z') {
+                    projectiles.push({
+                        x: this.x + this.width/2,
+                        y: this.y + 35,
+                        vx: 12 * this.facing,
+                        vy: 0,
+                        color: '#60a5fa',
+                        dmg: this.job.zDmg,
+                        owner: this,
+                        knockback: 7
+                    });
+                } else if (this.job === JOBS.WARRIOR) {
+                    const target = this.isPlayer ? ai : player;
+                    const dist = Math.abs((this.x + 20) - (target.x + 20));
+                    if (dist < this.job.range + 40 && ((this.facing === 1 && target.x > this.x) || (this.facing === -1 && target.x < this.x))) {
+                        target.hp = Math.max(0, target.hp - (type === 'X' ? this.job.xDmg : this.job.zDmg));
+                        if (target.superArmor <= 0) target.vx = this.facing * (type === 'X' ? 16 : 9);
+                    }
+                }
+            }
+
+            jump() {
+                if (!this.isJumping && currentGameState === STATE.PLAYING) {
+                    this.vy = -16;
+                    this.isJumping = true;
+                }
+            }
+        }
+
+        function startRound() {
+            menu.style.display = 'none';
+            gameUI.style.display = 'flex';
+            
+            const pJob = selectedJobIdx === 0 ? JOBS.WARRIOR : JOBS.MAGE;
+            const aJob = Math.random() > 0.5 ? JOBS.WARRIOR : JOBS.MAGE;
+            
+            player = new Character(100, 300, '#3b82f6', pJob, true);
+            ai = new Character(700, 300, '#ef4444', aJob, false);
+            projectiles = [];
+            
+            document.getElementById('player-job-name').innerText = pJob.name;
+            document.getElementById('ai-job-name').innerText = aJob.name;
+            
+            currentGameState = STATE.PLAYING;
+        }
+
+        function handleAI() {
+            if (currentGameState !== STATE.PLAYING) return;
+            const dist = ai.x - player.x;
+            const absDist = Math.abs(dist);
+            ai.facing = dist > 0 ? -1 : 1;
+
+            let moveSpeed = ai.job.moveSpeed;
+            if (ai.slowDown > 0) moveSpeed *= 0.4;
+
+            if (ai.job === JOBS.WARRIOR) {
+                if (absDist > 50) ai.vx += ai.facing * moveSpeed;
+                else if (Math.random() < 0.08) ai.attack('Z');
+                if (absDist > 200 && absDist < 450 && Math.random() < 0.02) ai.attack('X');
+            } else {
+                if (absDist < 120) {
+                    if (Math.random() < 0.04) ai.attack('X'); 
+                } else if (absDist < 250) {
+                    ai.vx -= ai.facing * moveSpeed;
+                } else if (absDist > 350) {
+                    ai.vx += ai.facing * moveSpeed;
+                }
+                if (Math.random() < 0.04) ai.attack('Z');
+            }
+            if (Math.random() < 0.01) ai.jump();
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+
+            if (currentGameState === STATE.PLAYING || currentGameState === STATE.ROUND_END) {
+                if (currentGameState === STATE.PLAYING) {
+                    let pSpeed = player.job.moveSpeed;
+                    if (player.slowDown > 0) pSpeed *= 0.4;
+                    if (keys['arrowleft']) { player.vx -= pSpeed; player.facing = -1; }
+                    if (keys['arrowright']) { player.vx += pSpeed; player.facing = 1; }
+                    if (keys[' ']) player.jump();
+                    if (keys['z']) player.attack('Z');
+                    if (keys['x']) player.attack('X');
+                    handleAI();
+                }
+
+                player.update();
+                ai.update();
+
+                for (let i = projectiles.length - 1; i >= 0; i--) {
+                    const p = projectiles[i];
+                    p.x += p.vx;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI*2); ctx.fill();
+
+                    const target = p.owner === player ? ai : player;
+                    if (p.x > target.x - 15 && p.x < target.x + target.width + 15 &&
+                        p.y > target.y && p.y < target.y + target.height) {
+                        target.hp = Math.max(0, target.hp - p.dmg);
+                        if (target.superArmor <= 0) target.vx = (p.vx > 0 ? 1 : -1) * p.knockback;
+                        projectiles.splice(i, 1);
+                        continue;
+                    }
+                    if (p.x < -50 || p.x > canvas.width + 50) projectiles.splice(i, 1);
+                }
+
+                updateUI();
+
+                if (currentGameState === STATE.PLAYING && (player.hp <= 0 || ai.hp <= 0)) {
+                    if (player.hp <= 0) aiWins++; else playerWins++;
+                    
+                    if (playerWins >= 2 || aiWins >= 2) {
+                        currentGameState = STATE.GAME_OVER;
+                        setTimeout(showFinalResult, 1000);
+                    } else {
+                        currentGameState = STATE.ROUND_END;
+                        setTimeout(() => {
+                            currentGameState = STATE.SELECTING;
+                            menu.style.display = 'block';
+                            gameUI.style.display = 'none';
+                            updateMenuUI();
+                        }, 1500);
+                    }
+                }
+            }
+
+            if (player) player.draw();
+            if (ai) ai.draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateUI() {
+            document.getElementById('p-hp').style.width = player.hp + '%';
+            document.getElementById('p-mp').style.width = (player.mp / player.job.maxMp * 100) + '%';
+            document.getElementById('ai-hp').style.width = ai.hp + '%';
+            document.getElementById('ai-mp').style.width = (ai.mp / ai.job.maxMp * 100) + '%';
+            document.getElementById('p-wins').innerText = '🏆'.repeat(playerWins);
+            document.getElementById('ai-wins').innerText = '🏆'.repeat(aiWins);
+        }
+
+        function showFinalResult() {
+            resultUI.style.display = 'block';
+            gameUI.style.display = 'none';
+            const winnerText = document.getElementById('winner-text');
+            // 加上感嘆號！
+            winnerText.innerText = playerWins >= 2 ? "你贏了！" : "你輸了！";
+            winnerText.style.color = playerWins >= 2 ? "#3b82f6" : "#ef4444";
+        }
+
+        updateMenuUI();
+        gameLoop();
+    </script>
+</body>
+</html>
